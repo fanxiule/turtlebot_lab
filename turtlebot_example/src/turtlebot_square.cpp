@@ -90,9 +90,10 @@ int main(int argc, char **argv)
         }
         if (!isTurning)
         {
-            vel.linear.x = 0.2;
+            vel.linear.x = 0.1;
             vel.angular.z = 0;
-            if (abs(X - initial_x) > 0.2)
+            ROS_INFO_STREAM("abs(X - initial_x)=" << fabs(X - initial_x));
+            if (fabs(X - initial_x) > 0.1)
             {
                 isTurning = true;
                 initial_yaw = Yaw;
