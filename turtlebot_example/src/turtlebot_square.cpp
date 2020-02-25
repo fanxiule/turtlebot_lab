@@ -85,7 +85,7 @@ int main(int argc, char **argv)
             //    yaw_target -= 2 * M_PI;
             //}
 
-            if (fabs(Yaw - yaw_target) < 0.05)
+            if (fabs(Yaw - yaw_target) < 0.01)
             {
                 isTurning = false;
                 initial_x = X;
@@ -98,7 +98,7 @@ int main(int argc, char **argv)
             vel.angular.z = 0;
             double distance = sqrt((X - initial_x) * (X - initial_x) + (Y - initial_y) * (Y - initial_y));
             ROS_INFO_NAMED("turtlebot", "Distance travelled: %f", distance);
-            if (distance > 0.4)
+            if (distance > 0.75)
             {
                 isTurning = true;
                 initial_yaw = Yaw;

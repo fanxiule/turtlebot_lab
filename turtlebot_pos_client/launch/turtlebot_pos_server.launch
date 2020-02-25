@@ -1,0 +1,6 @@
+<launch>
+<node name="turtlebot_pos_server_node" pkg="turtlebot_pos_server" output="screen" type="turtlebot_pos_server_node" launch-prefix="gdb">
+</node>
+
+</launch>
+

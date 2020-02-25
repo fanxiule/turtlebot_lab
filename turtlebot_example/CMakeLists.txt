@@ -5,12 +5,15 @@ project(turtlebot_example)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  geometry_msgs
-  roscpp
-  rospy
-  sensor_msgs
-  std_msgs
-  tf
+        geometry_msgs
+        roscpp
+        sensor_msgs
+        std_msgs
+        tf
+        gazebo_msgs
+        visualization_msgs
+        nav_msgs
+	rospy
 )
 
 ## System dependencies are found with CMake's conventions
@@ -108,6 +111,7 @@ include_directories(
 ## Declare a cpp executable
  add_executable(turtlebot_example_node src/turtlebot_example_node.cpp)
  add_executable(turtlebot_square src/turtlebot_square.cpp)
+ add_executable(turtlebot_example_lab2 src/turtlebot_example_lab2.cpp)
 ## Add cmake target dependencies of the executable/library
 ## as an example, message headers may need to be generated before nodes
 # add_dependencies(turtlebot_example_node turtlebot_example_generate_messages_cpp)
@@ -118,6 +122,10 @@ include_directories(
  )
 
  target_link_libraries(turtlebot_square
+ ${catkin_LIBRARIES}
+)
+
+ target_link_libraries(turtlebot_example_lab2
  ${catkin_LIBRARIES}
 )
 #############
