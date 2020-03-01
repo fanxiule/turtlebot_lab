@@ -13,19 +13,18 @@ class EllipPublisher(object):
         self.pub = rospy.Publisher(
             '/visualization_marker', Marker, queue_size=1)
 
-    def publish(self, x_eig, y_eig):
+    def publish(self, x_mean, y_mean, x_eig, y_eig):
         x = 0
         y = 0
         steps = 50
         
-        chi_area = 1.39  # chi square curve area, 0.50
-        a = sqrt(chi_area**2*x_eig)
-        b = sqrt(chi_area**2*y_eig)
+        chi_area = 5.99  # chi square curve area, 95% confidence level
+        a = sqrt(chi_area**2*x_eig) # for major axis
+        b = sqrt(chi_area**2*y_eig) # for minor axis
 
         lines = Marker()
-        # lines.header.frame_id = "/map"
-        lines.header.frame_id = "/base_link"
-        lines.id = 1  # each curve must have a unique id or you will overwrite an old ones
+        lines.header.frame_id = "/world"
+        lines.id = 1
         lines.type = Marker.LINE_STRIP
         lines.action = Marker.ADD
         lines.ns = "ellipse"
@@ -34,13 +33,13 @@ class EllipPublisher(object):
         lines.color.b = 0.2
         lines.color.a = 1.0
 
-        # generate curve points
+        # generate points on curve
         for i in range(steps): # second quadrant
             p = Point()
             p.z = 0  # not used
             y = sqrt((1-x**2/a**2)*b**2)
-            p.x = x
-            p.y = y
+            p.x = x + x_mean
+            p.y = y + y_mean
             lines.points.append(p)
             x = x - a/steps
 
@@ -49,8 +48,8 @@ class EllipPublisher(object):
             p = Point()
             p.z = 0  # not used
             y = sqrt((1-x**2/a**2)*b**2)
-            p.x = x
-            p.y = -y
+            p.x = x + x_mean
+            p.y = -y + y_mean
             lines.points.append(p)
             x = x + a/steps
         
@@ -59,8 +58,8 @@ class EllipPublisher(object):
             p = Point()
             p.z = 0  # not used
             y = sqrt((1-x**2/a**2)*b**2)
-            p.x = x
-            p.y = -y
+            p.x = x + x_mean
+            p.y = -y + y_mean
             lines.points.append(p)
             x = x + a/steps
         
@@ -69,8 +68,8 @@ class EllipPublisher(object):
             p = Point()
             p.z = 0  # not used
             y = sqrt((1-x**2/a**2)*b**2)
-            p.x = x
-            p.y = y
+            p.x = x + x_mean
+            p.y = y + y_mean
             lines.points.append(p)
             x = x - a/steps
 
