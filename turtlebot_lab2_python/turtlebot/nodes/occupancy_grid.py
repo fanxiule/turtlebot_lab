@@ -1,8 +1,13 @@
+#!/usr/bin/env python
+import sys
 import rospy
+import tf
 
 import numpy as np 
 from math import floor, log, sin, cos
 from nav_msgs.msg import OccupancyGrid, MapMetaData	
+from geometry_msgs.msg import PoseWithCovarianceStamped, Pose
+from sensor_msgs.msg import LaserScan
 
 #some constants
 O_0 = 0.5
@@ -11,71 +16,84 @@ O_free = 0
 l_0 = log(O_0/(1-O_0))
 
 
-class mapMaker(self):
+class mapMaker():
 
 	def __init__(self):
 		rospy.init_node('turtlebot', anonymous=True)
 
 		# initialize a publisher for occupancy grid
-	    self.occupancy_pub = rospy.Publisher('/map', OccupancyGrid, queue_size=1)
-	    self.occupancy_grid = OccupancyGrid()
-	    metadata = MapMetaData()
-	    metadata.map_load_time = 
-	    metadata.resolution = resolution = rospy.get_param("~grid_resolution", .10)
-	    metadata.width = int(rospy.get_param("~grid_width", 1000))
-	    metadata.height = int(rospy.get_param("~grid_height", 1000))
-	    pos = np.array([-width * resolution / 2, -height * resolution / 2, 0])
-	    metadata.origin = Pose()
-	    metadata.origin.position.x, metadata.origin.position.y = pos[:2]
+		self.occupancy_pub = rospy.Publisher('/map', OccupancyGrid, queue_size=1)
+		self.occupancy_grid = OccupancyGrid()
+		metadata = MapMetaData()
+		metadata.map_load_time = None
+		metadata.resolution = resolution = rospy.get_param("~grid_resolution", .10)
+		metadata.width = int(rospy.get_param("~grid_width", 1000))
+		metadata.height = int(rospy.get_param("~grid_height", 1000))
+		pos = np.array([-metadata.width * resolution / 2, -metadata.height * resolution / 2, 0])
+		metadata.origin = Pose()
+		metadata.origin.position.x, metadata.origin.position.y = pos[:2]
 
-	    self.map_metadata = metadata
-	    self.laser_data = None
-	    self.position = None
-	    self.orientation = None
-	    self.covariance = None
+		self.map_metadata = metadata
+		self.laser_data = None
+		self.position = None
+		self.orientation = None
+		self.covariance = None
 
-	    # initialize a subscriber to receive the estimated pose and the map
-	    rospy.Subscriber("/scan", LaserScan, self.laser_callback)
+		# initialize a subscriber to receive the estimated pose and the map
+		rospy.Subscriber("/scan", LaserScan, self.laser_callback)
 
-	    # initialize a subscriber to receiver estimated posiition from the kalman filter output
-	    rospy.Subscriber('/indoor_pos', PoseWithCovarianceStamped, self.kalman_callback)
+		# initialize a subscriber to receiver estimated posiition from the kalman filter output
+		rospy.Subscriber('/indoor_pos', PoseWithCovarianceStamped, self.IPS_callback)
 
-	    rate = rospy.Rate(20)  # hz
+		rate = rospy.Rate(20)  # hz
 
-	    # while ROS is still running
-	    while not rospy.is_shutdown():
+		# while ROS is still running
+		while not rospy.is_shutdown():
 
-	        # movement forward (X-axis only)
-	        msg.linear.x = 0.1
-	        msg.linear.y = 0
-	        msg.linear.z = 0
+			"""
+			# movement forward (X-axis only)
+			msg.linear.x = 0.1
+			msg.linear.y = 0
+			msg.linear.z = 0
 
-	        # and angular rotation
-	        msg.angular.x = 0
-	        msg.angular.y = 0
-	        msg.angular.z = 0.3
+			# and angular rotation
+			msg.angular.x = 0
+			msg.angular.y = 0
+			msg.angular.z = 0.3
+			"""
+			
+			#pub.publish(msg)
+			rate.sleep()
 
-	        pub.publish(msg)
-	        rate.sleep()
 
 	def laser_callback(self, msg):
 		self.laser_data = msg
+		angle = self.laser_data.angle_min
+		self.angles = []
+		self.ranges = []
+		i = 0
+		while angle <= self.laser_data.angle_max: 
+			if not (self.laser_data.ranges[i] < self.laser_data.range_min or self.laser_data.ranges[i] > self.laser_data.range_max):
+				self.angles.append(angle)
+				self.ranges.append(self.laser_data.ranges[i])
+			return
 		
 
 	def IPS_callback(self, msg):
-		self.position = msg.pose.position
-		self.orientation = tf.transformations.euler_from_quaternion(msg.pose.orientation)
+		self.position = msg.pose.pose.position
+		self.orientation = tf.transformations.euler_from_quaternion(msg.pose.pose.orientation)
 		self.covariance = msg.covariance
 
 
-	def update (self, ranges, angles) :
+	def update (self) :
 		x, y, z = self.position
 		pitch, roll, yaw = self.orientation
 
-		for each r,a in ranges, angles:
+		for r,a in self.angles, self.ranges:
 			cx, cy, pr = inverseScanner(x, y, yaw, a, r)
 			for i in length(cx):
-				self.occupancy_grid(cx,cy) = self.occupancy_grid(cx,cy) + log(pr/(1-pr)) - l_0
+				idx = cx*self.occupancy_grid.info.width + cy*self.occupancy_grid.info.height
+				self.occupancy_grid[idx] = self.occupancy_grid[idx] + log(pr/(1-pr)) - l_0
 
 	def inverseScanner(self,x_robot,y_robot,theta_robot,theta_scan,range_scan):
 		#convert scans to cartesian coordinates of end points
@@ -85,6 +103,10 @@ class mapMaker(self):
 		#return cx, cy, pr (lists most likely)
 		x_obj = x_robot + range_scan * sin(theta_robot + theta_scan)
 		y_obj = y_robot + range_scan * cos(theta_robot + theta_scan)
+		x_array, y_array = self.bresenham(x_robot, y_robot, x_obj, y_obj)
+		pr = np.zeros(len(x_array))
+		pr[-1] = 1
+		
 
 		return x_obj , y_obj, pr
 
@@ -122,21 +144,21 @@ class mapMaker(self):
 				y = np.arange(y1, y2+1)
 			else:
 				y = np.arange(y1, y2-1, -1)
-				if x1 <= x2:
-					x = x1+np.cumsum(q)
-				else:
-					x = x1-np.cumsum(q)
+			if x1 <= x2:
+				x = x1+np.cumsum(q)
 			else:
-				if x1 <= x2:
-					x = np.arange(x1, x2+1)
-				else:
-					x = np.arange(x1, x2-1, -1)
-				if y1 <= y2:
-					y = y1+np.cumsum(q)
-				else:
-					y = y1-np.cumsum(q)
+				x = x1-np.cumsum(q)
+		else:
+			if x1 <= x2:
+				x = np.arange(x1, x2+1)
+			else:
+				x = np.arange(x1, x2-1, -1)
+			if y1 <= y2:
+				y = y1+np.cumsum(q)
+			else:
+				y = y1-np.cumsum(q)
 		
-			return x, y
+		return x, y
 
 
 def main():
@@ -148,7 +170,7 @@ def main():
 
 
 if __name__ == '__main__':
-    try:
-        sys.exit(main())
-    except rospy.ROSInterruptException:
-        pass
+	try:
+		sys.exit(main())
+	except rospy.ROSInterruptException:
+		pass

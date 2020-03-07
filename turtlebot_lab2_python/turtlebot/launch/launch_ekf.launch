@@ -1,4 +1,4 @@
 <launch>
-    <node pkg="rosbag" type="play" name="player" output="screen" args="--clock /home/xiule/catkin_ws/src/turtlebot_lab/turtlebot_lab2_python/turtlebot/2020-02-12-07-18-19.bag"/>
+    <node pkg="rosbag" type="play" name="player" output="screen" args="--clock /home/fan/catkin_ws/src/turtlebot_lab/turtlebot_lab2_python/turtlebot/2020-02-12-07-18-19.bag"/>
     <node pkg="turtlebot_lab2_python" name="extended_kf" type="extended_kf.py" output="screen"/>
 </launch>
