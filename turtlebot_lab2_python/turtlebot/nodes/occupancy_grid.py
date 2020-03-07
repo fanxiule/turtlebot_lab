@@ -30,7 +30,9 @@ class mapMaker(self):
 
 	    self.map_metadata = metadata
 	    self.laser_data = None
-
+	    self.position = None
+	    self.orientation = None
+	    self.covariance = None
 
 	    # initialize a subscriber to receive the estimated pose and the map
 	    rospy.Subscriber("/scan", LaserScan, self.laser_callback)
@@ -61,14 +63,17 @@ class mapMaker(self):
 		
 
 	def IPS_callback(self, msg):
-		position = msg.pose.position
-		orientation = tf.transformations.euler_from_quaternion(msg.pose.orientation)
-		covariance = msg.covariance
+		self.position = msg.pose.position
+		self.orientation = tf.transformations.euler_from_quaternion(msg.pose.orientation)
+		self.covariance = msg.covariance
 
 
 	def update (self, ranges, angles) :
+		x, y, z = self.position
+		pitch, roll, yaw = self.orientation
+
 		for each r,a in ranges, angles:
-			cx, cy, pr = inverseScanner(self.laser_data.)
+			cx, cy, pr = inverseScanner(x, y, yaw, a, r)
 			for i in length(cx):
 				self.occupancy_grid(cx,cy) = self.occupancy_grid(cx,cy) + log(pr/(1-pr)) - l_0
 
