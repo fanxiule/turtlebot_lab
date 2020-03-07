@@ -30,3 +30,8 @@ catkin_install_python(PROGRAMS nodes/extended_kf.py
     DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
     USE_SOURCE_PERMISSIONS
 )
+
+catkin_install_python(PROGRAMS nodes/occupancy_grid.py
+    DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+    USE_SOURCE_PERMISSIONS
+)
