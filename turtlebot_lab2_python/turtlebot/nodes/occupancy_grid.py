@@ -1,5 +1,5 @@
 import numpy as np 
-from math import floor, log
+from math import floor, log, sin, cos
 from nav_msgs.msg import OccupancyGrid, MapMetaData	
 
 #some constants
@@ -68,14 +68,16 @@ class mapMaker(self):
 			for i in length(cx):
 				self.occupancy_grid(cx,cy) = self.occupancy_grid(cx,cy) + log(pr/(1-pr)) - l_0
 
-
-	def inverseScanner(self):
+	def inverseScanner(self,x_robot,y_robot,theta_robot,theta_scan,range_scan):
 		#convert scans to cartesian coordinates of end points
 
 		#call bresenham algorithm from start point to end point to receive list of all points on the line
 		#for every point calculate occupancy probability
 		#return cx, cy, pr (lists most likely)
-		continue
+		x_obj = x_robot + range_scan * sin(theta_robot + theta_scan)
+		y_obj = y_robot + range_scan * cos(theta_robot + theta_scan)
+
+		return x_obj , y_obj
 
 	def publish_data(self):
 		occGrid = OccupancyGrid()
