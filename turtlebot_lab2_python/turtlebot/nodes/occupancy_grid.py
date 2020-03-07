@@ -1,3 +1,5 @@
+import rospy
+
 import numpy as np 
 from math import floor, log, sin, cos
 from nav_msgs.msg import OccupancyGrid, MapMetaData	
@@ -17,23 +19,24 @@ class mapMaker(self):
 		# initialize a publisher for occupancy grid
 	    self.occupancy_pub = rospy.Publisher('/map', OccupancyGrid, queue_size=1)
 	    self.occupancy_grid = OccupancyGrid()
-	    metadata = MapMetaData
-	    metadata.map_load_time
-	    metadata.resolution = 
-	    metadata.width = 
-	    metadata.height = 
-	    metadata.origin = 
-	    metadata.origin.position.x = 
-	    metadata.origin.orientation = 
+	    metadata = MapMetaData()
+	    metadata.map_load_time = 
+	    metadata.resolution = resolution = rospy.get_param("~grid_resolution", .10)
+	    metadata.width = int(rospy.get_param("~grid_width", 1000))
+	    metadata.height = int(rospy.get_param("~grid_height", 1000))
+	    pos = np.array([-width * resolution / 2, -height * resolution / 2, 0])
+	    metadata.origin = Pose()
+	    metadata.origin.position.x, metadata.origin.position.y = pos[:2]
 
 	    self.map_metadata = metadata
+	    self.laser_data = None
 
 
 	    # initialize a subscriber to receive the estimated pose and the map
-	    rospy.Subscriber("/scan", LaserScan, laser_callback, ())
+	    rospy.Subscriber("/scan", LaserScan, self.laser_callback)
 
 	    # initialize a subscriber to receiver estimated posiition from the kalman filter output
-	    rospy.Subscriber('/pose', PoseStamped, kalman_callback, ())
+	    rospy.Subscriber('/indoor_pos', PoseWithCovarianceStamped, self.kalman_callback)
 
 	    rate = rospy.Rate(20)  # hz
 
@@ -53,18 +56,19 @@ class mapMaker(self):
 	        pub.publish(msg)
 	        rate.sleep()
 
-	def laser_callback():
-		#map correct data types and call update
-		pass
+	def laser_callback(self, msg):
+		self.laser_data = msg
+		
 
-	def kalman_callback(self, data):
-		self.X_t = data
-		pass
+	def IPS_callback(self, msg):
+		position = msg.pose.position
+		orientation = tf.transformations.euler_from_quaternion(msg.pose.orientation)
+		covariance = msg.covariance
 
 
-	def update (self, X_t, ranges, angles) :
+	def update (self, ranges, angles) :
 		for each r,a in ranges, angles:
-			cx, cy, pr = inverseScanner( X_t, rng=r, bearing=a)
+			cx, cy, pr = inverseScanner(self.laser_data.)
 			for i in length(cx):
 				self.occupancy_grid(cx,cy) = self.occupancy_grid(cx,cy) + log(pr/(1-pr)) - l_0
 
@@ -77,7 +81,7 @@ class mapMaker(self):
 		x_obj = x_robot + range_scan * sin(theta_robot + theta_scan)
 		y_obj = y_robot + range_scan * cos(theta_robot + theta_scan)
 
-		return x_obj , y_obj
+		return x_obj , y_obj, pr
 
 	def publish_data(self):
 		occGrid = OccupancyGrid()
