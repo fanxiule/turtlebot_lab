@@ -81,8 +81,9 @@ class mapMaker():
 
 	def IPS_callback(self, msg):
 		self.position = msg.pose.pose.position
-		self.orientation = tf.transformations.euler_from_quaternion(msg.pose.pose.orientation)
-		self.covariance = msg.covariance
+		quaternion = msg.pose.pose.orientation
+		self.orientation = tf.transformations.euler_from_quaternion([quaternion.x, quaternion.y, quaternion.z, quaternion.w])
+		self.covariance = msg.pose.covariance
 
 
 	def update (self) :
@@ -94,6 +95,7 @@ class mapMaker():
 			for i in length(cx):
 				idx = cx*self.occupancy_grid.info.width + cy*self.occupancy_grid.info.height
 				self.occupancy_grid[idx] = self.occupancy_grid[idx] + log(pr/(1-pr)) - l_0
+		self.publish_data()
 
 	def inverseScanner(self,x_robot,y_robot,theta_robot,theta_scan,range_scan):
 		#convert scans to cartesian coordinates of end points
@@ -106,8 +108,6 @@ class mapMaker():
 		x_array, y_array = self.bresenham(x_robot, y_robot, x_obj, y_obj)
 		pr = np.zeros(len(x_array))
 		pr[-1] = 1
-		
-
 		return x_obj , y_obj, pr
 
 	def publish_data(self):
@@ -115,7 +115,7 @@ class mapMaker():
 		occGrid.header.frame_id = '/world'
 		occGrid.info = self.map_metadata
 		occGrid.data = ()
-		self.occupancy_pub.publish(occGrid) 
+		self.occupancy_pub.publish(self.occupancy_grid) 
 
 
 	def bresenham(self, x1, y1, x2,y2):
