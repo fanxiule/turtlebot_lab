@@ -38,7 +38,7 @@ def getPoseFromIPS(args):
                      pose_msg.pose.orientation.z, pose_msg.pose.orientation.w]
 
     (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(explicit_quat)
-    rospy.loginfo("X: " + str(x) + ", Y: " + str(y) + ", Yaw: " + str(yaw))
+    # rospy.loginfo("X: " + str(x) + ", Y: " + str(y) + ", Yaw: " + str(yaw))
 
 
 # Callback function for the Position topic (SIMULATION)
@@ -52,12 +52,13 @@ def pose_callback(msg, args):
     # for i in range(len(msg.pose)):
     #    print("Pose {}: {},{},{}".format(i, msg.pose[i].position.x,
     #                                     msg.pose[i].position.y, msg.pose[i].position.z))
-
+    rospy.loginfo(str(msg))
     # republish pose for rviz
     publisher = args
     curpose = PoseStamped()
     curpose.pose = msg.pose[1]
     curpose.header.frame_id = "/map"
+    # rospy.loginfo("X: " + str(msg.pose[1].position.x))
     # curpose.header.frame_id = "/base_link"
     getPoseFromIPS(curpose)
     publisher.publish(curpose)

@@ -11,6 +11,7 @@ from math import cos
 from math import sqrt
 
 from nav_msgs.msg import Path
+from gazebo_msgs.msg import ModelStates
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import Twist
 from geometry_msgs.msg import PoseWithCovarianceStamped
@@ -56,15 +57,17 @@ def ekf(lin_vel, rot_vel, x, y, yaw):  # ekf algorithm
     # R, motion model covariance
     R = np.array([[x_var, 0, 0], [0, y_var, 0], [0, 0, yaw_var]])
     # Q, measurement model covariance
-    Q = np.array([[0.01, 0, 0], [0, 0.01, 0], [0, 0, 0.0]])
-    G_lin = np.array([[1, 0, -lin_vel*sin(x_upd_pre[2, 0])],
-                      [0, 1, lin_vel*cos(x_upd_pre[2, 0])], [0, 0, 1]])  # linearized motion model
+    Q = np.array([[0.01, 0, 0], [0, 0.01, 0], [0, 0, 0.01]])
+    G_lin = np.array([[1, 0, -lin_vel*sample_time*sin(x_upd_pre[2, 0])],
+                      [0, 1, lin_vel*sample_time*cos(x_upd_pre[2, 0])], [0, 0, 1]])  # linearized motion model
     # rospy.loginfo("Sensor: " + str(sensor_var) + " Q: " + str(Q) +
     #              " R: " + str(R) + " G_linearized: " + str(G_lin))
 
     if iter == 0:  # first iteration
         # initial belief of state
+        # if running rosbag from the lab
         x_upd = np.array([[6.2], [-2.5], [0]], dtype='float')
+        # x_upd = np.array([[0], [0], [0]], dtype='float') # for simulation
         # initial belief of error covariance
         err_upd = np.array([[0.01, 0, 0], [0, 0.01, 0], [0, 0, 0.01]])
     else:
@@ -80,7 +83,7 @@ def ekf(lin_vel, rot_vel, x, y, yaw):  # ekf algorithm
         K = np.dot(np.dot(err_pred, np.transpose(H)), np.linalg.inv(
             np.dot(np.dot(H, err_pred), np.transpose(H))+Q))  # Kalman gain
         # sensor measurement from IPS
-        mea = np.array([[x_mea], [y_mea], [yaw_mea]])
+        mea = np.array([[x], [y], [yaw]])
         # rospy.loginfo("H: " + str(H) + " K" + str(K) + " mea: " + str(mea))
         x_upd = x_pred+np.dot(K, (mea-x_pred))  # state update
         # error covariance update
@@ -156,6 +159,65 @@ def teleop_callback(msg):  # obtain control action
     rot_vel = msg.angular.z
 
 
+def sim_callback(msg, pubs):  # call back for simulation
+    global x
+    global y
+    global yaw
+    global x_mea
+    global y_mea
+    global yaw_mea
+    global x_var
+    global y_var
+    global yaw_var
+    global real_path
+    global mea_path
+
+    # rospy.loginfo(str(msg))
+    x = msg.pose[1].position.x
+    y = msg.pose[1].position.y
+
+    explicit_quat = [msg.pose[1].orientation.x, msg.pose[1].orientation.y,
+                     msg.pose[1].orientation.z, msg.pose[1].orientation.w]
+    # convert orientation from quaternion to euler
+    (roll, pitch, yaw) = tf.transformations.euler_from_quaternion(explicit_quat)
+    # rospy.loginfo("Ground True X: " + str(x) + ", Y: " +
+    #               str(y) + ", Yaw: " + str(yaw))
+
+    # corrupt true states with noise
+    x_mea = x + np.random.normal(0, sqrt(x_var))
+    y_mea = y + np.random.normal(0, sqrt(y_var))
+    yaw_mea = yaw + np.random.normal(0, sqrt(yaw_var))
+
+    # broadcast a global frame /world, origin of this frame is the origin of IPS frame
+    tf_broadcaster = pubs[0]
+    tf_broadcaster.sendTransform((x, y, 0),
+                                 explicit_quat,
+                                 rospy.Time.now(),
+                                 "base_link",
+                                 "world")
+    # rospy.loginfo("Measurement X: " + str(x_mea) + ", Y: " +
+    #               str(y_mea) + ", Yaw: " + str(yaw_mea))
+
+    # publish the real path of the robot
+    path_publisher = pubs[1]
+    curpose = PoseStamped()
+    curpose.pose = msg.pose[1]
+    curpose.header.frame_id = "/world"
+    real_path.poses.append(curpose)
+    real_path.header.frame_id = "/world"
+    path_publisher.publish(real_path)
+
+    # publish the path based on corrupted measurement only
+    mea_publisher = pubs[2]
+    curpose = PoseStamped()
+    curpose.pose.position.x = x_mea
+    curpose.pose.position.y = y_mea
+    curpose.header.frame_id = "/world"
+    mea_path.poses.append(curpose)
+    mea_path.header.frame_id = "/world"
+    mea_publisher.publish(mea_path)
+
+
 def main():
     # initialize the ROS model
     rospy.init_node('extended_KF', anonymous=True)
@@ -170,12 +232,14 @@ def main():
         "/ekf_path", Path, queue_size=1)  # publisher for ekf path
     publishers = [frame_br, true_path_pub, mea_path_pub]
     rospy.Subscriber("/indoor_pos", PoseWithCovarianceStamped,
-                     IPS_callback, publishers)  # subscriber to obtain IPS data
+                     IPS_callback, publishers, queue_size=1)  # subscriber to obtain IPS data
+    # rospy.Subscriber("/gazebo/model_states", ModelStates,
+    #                  sim_callback, publishers, queue_size=1)  # for simulation
     ellip_pub = EllipPublisher()  # publisher for ekf covariance ellipse
     # subscriber to obtain control action
     rospy.Subscriber("/cmd_vel_mux/input/teleop", Twist, teleop_callback)
 
-    rate = rospy.Rate(1)  # 1 Hz
+    rate = rospy.Rate(1/sample_time)  # convert sample time to Hz
     while not rospy.is_shutdown():
         try:
             x_upd, err_upd = ekf(lin_vel, rot_vel, x_mea, y_mea, yaw_mea)
@@ -232,6 +296,7 @@ def main():
             plt.grid()
             fig3.canvas.draw_idle()
             plt.pause(0.001)
+
             rate.sleep()
 
         except rospy.exceptions.ROSInternalException:
