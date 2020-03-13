@@ -39,7 +39,7 @@ class mapMaker():
 
 		self.map_metadata = metadata
 		self.occupancy_grid.info = self.map_metadata
-		self.occupancy_grid.data = np.ones(metadata.height * metadata.width)*0.5
+		self.occupancy_grid.data = np.ones(metadata.height * metadata.width)
 		self.laser_data = None
 		self.position = None
 		self.orientation = None
@@ -119,9 +119,9 @@ class mapMaker():
 			cx, cy, pr = self.inverseScanner(x, y, yaw, a, r)
 			#rospy.loginfo("cx = %s, cy = %s, pr = %s" % (cx,cy,pr))
 			for i in range(0,len(cx)):
-				idx = int(cx[i])*self.occupancy_grid.info.width + int(cy[i])*self.occupancy_grid.info.height
-				rospy.loginfo("idx %s", idx)
-				self.occupancy_grid.data[idx] = self.occupancy_grid.data[idx] + log(pr[i]/(1-pr[i])) - l_0
+				idx = int(cx[i])*self.occupancy_grid.info.width + int(cy[i])
+				#rospy.loginfo("idx %s", idx)
+				#self.occupancy_grid.data[idx] = int(self.occupancy_grid.data[idx] + log(pr[i]/(1-pr[i])) - l_0)
 		self.publish_data()
 
 	def inverseScanner(self,x_robot,y_robot,theta_robot,theta_scan,range_scan):
@@ -130,23 +130,24 @@ class mapMaker():
 		#call bresenham algorithm from start point to end point to receive list of all points on the line
 		#for every point calculate occupancy probability
 		#return cx, cy, pr (lists most likely)
-		rospy.loginfo("Tomas DEBUG x_robot = %s, y_robot = %s, theta_robot= %s, theta_scan = %s, range_scan =%s" % (x_robot,y_robot,theta_robot,theta_scan,range_scan))
+		#rospy.loginfo("Tomas DEBUG x_robot = %s, y_robot = %s, theta_robot= %s, theta_scan = %s, range_scan =%s" % (x_robot,y_robot,theta_robot,theta_scan,range_scan))
 		x_obj = x_robot + range_scan * sin(theta_robot + theta_scan)
 		rospy.loginfo("test")
 		rospy.loginfo(x_obj)
 		y_obj = y_robot + range_scan * cos(theta_robot + theta_scan)
 		x_array, y_array = self.bresenham(x_robot*self.conversion_m_to_xy, y_robot*self.conversion_m_to_xy, x_obj*self.conversion_m_to_xy, y_obj*self.conversion_m_to_xy)
 		rospy.loginfo('x_array = %s' % x_array)
-		pr = np.ones(len(x_array))*0.1
+		pr = np.ones(len(x_array))*10
 		pr[-1] = 1
 		return x_array , y_array, pr
 
 	def publish_data(self):
 		occGrid = OccupancyGrid()
-		occGrid.header.frame_id = '/world'
+		#occGrid.header.frame_id = '/map'
 		occGrid.info = self.map_metadata
-		occGrid.data = ()
-		self.occupancy_pub.publish(self.occupancy_grid) 
+		occGrid.data = self.occupancy_grid.data
+		rospy.loginfo("about to publish")
+		self.occupancy_pub.publish(occGrid) 
 
 
 	def bresenham(self, x1, y1, x2,y2):
