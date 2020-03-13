@@ -23,6 +23,7 @@ class mapMaker():
 
 		# initialize a publisher for occupancy grid
 		self.occupancy_pub = rospy.Publisher('/map', OccupancyGrid, queue_size=1)
+		rospy.loginfo("got into initializaytion")
 		self.occupancy_grid = OccupancyGrid()
 		metadata = MapMetaData()
 		metadata.map_load_time = None
@@ -32,8 +33,13 @@ class mapMaker():
 		pos = np.array([-metadata.width * resolution / 2, -metadata.height * resolution / 2, 0])
 		metadata.origin = Pose()
 		metadata.origin.position.x, metadata.origin.position.y = pos[:2]
+		self.conversion_m_to_xy = metadata.width/30
+		#self.conversion_m_to_y = self.
+
 
 		self.map_metadata = metadata
+		self.occupancy_grid.info = self.map_metadata
+		self.occupancy_grid.data = np.ones(metadata.height * metadata.width)*0.5
 		self.laser_data = None
 		self.position = None
 		self.orientation = None
@@ -67,16 +73,23 @@ class mapMaker():
 
 
 	def laser_callback(self, msg):
+		#rospy.loginfo("got into laser callback")
 		self.laser_data = msg
 		angle = self.laser_data.angle_min
-		self.angles = []
+		self.angles = []																														
 		self.ranges = []
 		i = 0
 		while angle <= self.laser_data.angle_max: 
-			if not (self.laser_data.ranges[i] < self.laser_data.range_min or self.laser_data.ranges[i] > self.laser_data.range_max):
+			if not (self.laser_data.ranges[i] < self.laser_data.range_min or self.laser_data.ranges[i] > self.laser_data.range_max or np.isnan(self.laser_data.ranges[i])):
 				self.angles.append(angle)
-				self.ranges.append(self.laser_data.ranges[i])
-			return
+				if np.isnan(self.laser_data.ranges[i]):
+					self.ranges.append(0)
+				else :
+					self.ranges.append(self.laser_data.ranges[i])
+			angle += self.laser_data.angle_increment
+			i +=1
+		#rospy.loginfo("outtttttt the loop buddy")
+		self.update()
 		
 
 	def IPS_callback(self, msg):
@@ -87,14 +100,28 @@ class mapMaker():
 
 
 	def update (self) :
-		x, y, z = self.position
+		#rospy.loginfo("position %s" % self.position)
+		if self.position is None:
+			return
+		x = self.position.x
+		y = self.position.y
+		z = self.position.z
 		pitch, roll, yaw = self.orientation
+		#rospy.loginfo("got into update callback")
 
-		for r,a in self.angles, self.ranges:
-			cx, cy, pr = inverseScanner(x, y, yaw, a, r)
-			for i in length(cx):
-				idx = cx*self.occupancy_grid.info.width + cy*self.occupancy_grid.info.height
-				self.occupancy_grid[idx] = self.occupancy_grid[idx] + log(pr/(1-pr)) - l_0
+		# for r,a in self.angles, self.ranges:
+		# rospy.loginfo("angles %s" % self.angles)
+
+		for j in range(0,len(self.angles)):
+			r = self.ranges[j]
+			a = self.angles[j]
+			#rospy.loginfo("x = %s, y = %s, yaw = %s, a = %s, r =%s" % (x,y,yaw,a,r))
+			cx, cy, pr = self.inverseScanner(x, y, yaw, a, r)
+			#rospy.loginfo("cx = %s, cy = %s, pr = %s" % (cx,cy,pr))
+			for i in range(0,len(cx)):
+				idx = int(cx[i])*self.occupancy_grid.info.width + int(cy[i])*self.occupancy_grid.info.height
+				rospy.loginfo("idx %s", idx)
+				self.occupancy_grid.data[idx] = self.occupancy_grid.data[idx] + log(pr[i]/(1-pr[i])) - l_0
 		self.publish_data()
 
 	def inverseScanner(self,x_robot,y_robot,theta_robot,theta_scan,range_scan):
@@ -103,12 +130,16 @@ class mapMaker():
 		#call bresenham algorithm from start point to end point to receive list of all points on the line
 		#for every point calculate occupancy probability
 		#return cx, cy, pr (lists most likely)
+		rospy.loginfo("Tomas DEBUG x_robot = %s, y_robot = %s, theta_robot= %s, theta_scan = %s, range_scan =%s" % (x_robot,y_robot,theta_robot,theta_scan,range_scan))
 		x_obj = x_robot + range_scan * sin(theta_robot + theta_scan)
+		rospy.loginfo("test")
+		rospy.loginfo(x_obj)
 		y_obj = y_robot + range_scan * cos(theta_robot + theta_scan)
-		x_array, y_array = self.bresenham(x_robot, y_robot, x_obj, y_obj)
-		pr = np.zeros(len(x_array))
+		x_array, y_array = self.bresenham(x_robot*self.conversion_m_to_xy, y_robot*self.conversion_m_to_xy, x_obj*self.conversion_m_to_xy, y_obj*self.conversion_m_to_xy)
+		rospy.loginfo('x_array = %s' % x_array)
+		pr = np.ones(len(x_array))*0.1
 		pr[-1] = 1
-		return x_obj , y_obj, pr
+		return x_array , y_array, pr
 
 	def publish_data(self):
 		occGrid = OccupancyGrid()
@@ -157,7 +188,7 @@ class mapMaker():
 				y = y1+np.cumsum(q)
 			else:
 				y = y1-np.cumsum(q)
-		
+
 		return x, y
 
 
