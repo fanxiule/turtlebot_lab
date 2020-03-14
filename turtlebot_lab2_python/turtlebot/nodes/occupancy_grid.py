@@ -4,7 +4,7 @@ import rospy
 import tf
 
 import numpy as np 
-from math import floor, log, sin, cos
+from math import floor, log, sin, cos, exp
 from nav_msgs.msg import OccupancyGrid, MapMetaData	
 from geometry_msgs.msg import PoseWithCovarianceStamped, Pose
 from sensor_msgs.msg import LaserScan
@@ -16,6 +16,9 @@ def prob_to_logit(prob):
 		return float('inf')
 	else:
 		return log(prob/(1.0-prob))
+
+def logit_to_prob(logit):
+	return (1.0 - 1.0/(1 + exp(logit)))
 
 #some constants
 O_0 = 0.5
@@ -35,13 +38,13 @@ class mapMaker():
 		self.occupancy_grid = OccupancyGrid()
 		metadata = MapMetaData()
 		# metadata.map_load_time = None
-		metadata.resolution = resolution = rospy.get_param("~grid_resolution", 1)
+		metadata.resolution = resolution = 0.1
 		metadata.width = 250
 		metadata.height = 250
 		pos = np.array([-metadata.width * resolution / 2, -metadata.height * resolution / 2, 0])
 		metadata.origin = Pose()
 		metadata.origin.position.x, metadata.origin.position.y = pos[:2]
-		self.conversion_m_to_xy = metadata.width/30
+		self.conversion_m_to_xy = metadata.width/30 + 10
 		#self.conversion_m_to_y = self.
 
 
@@ -64,17 +67,6 @@ class mapMaker():
 		# while ROS is still running
 		# while not rospy.is_shutdown():
 
-		"""
-		# movement forward (X-axis only)
-		msg.linear.x = 0.1
-		msg.linear.y = 0
-		msg.linear.z = 0
-
-		# and angular rotation
-		msg.angular.x = 0
-		msg.angular.y = 0
-		msg.angular.z = 0.3
-		"""
 		
 		#pub.publish(msg)
 		# rate.sleep()
@@ -130,6 +122,10 @@ class mapMaker():
 			
 			#rospy.loginfo("cx = %s, cy = %s, pr = %s" % (cx,cy,pr))
 			for i in range(0,len(cx)):
+				if cx[i] > self.occupancy_grid.info.width or cy[i] > self.occupancy_grid.info.height :
+					continue
+
+
 				idx = int(cx[i])*self.occupancy_grid.info.width + int(cy[i])
 				#rospy.loginfo("pr %s", pr)
 				self.occupancy_grid.data[idx] = int(self.occupancy_grid.data[idx] + prob_to_logit(pr[i]) - l_0)
@@ -157,7 +153,7 @@ class mapMaker():
 		return x_array , y_array, pr
 
 	def publish_data(self):
-		data_ = [np.int8(i*100) for i in self.occupancy_grid.data]
+		data_ = [np.int8(logit_to_prob(i)*100) for i in self.occupancy_grid.data]
 		occGrid = OccupancyGrid(info=self.map_metadata, data =data_)
 
 		rospy.loginfo("about to publish: %s " % len(data_))
